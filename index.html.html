@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Target Reminder Registration</title>
+  <style>
+    body{font-family:system-ui,sans-serif;max-width:480px;margin:40px auto;padding:0 20px;color:#1B2430}
+    h2{font-size:20px;font-weight:600}
+    p{font-size:14px;color:#52514e;line-height:1.5}
+    input{width:100%;padding:10px;border-radius:8px;border:1px solid #c3c2b7;font-size:15px;margin:10px 0;box-sizing:border-box}
+    button{width:100%;padding:12px;border-radius:8px;border:none;background:#1F4E78;color:#fff;font-size:15px;font-weight:600;cursor:pointer}
+    button:disabled{background:#aaa;cursor:not-allowed}
+    #status{margin-top:16px;font-size:14px;font-weight:500}
+    .ok{color:#2e7d32}
+    .err{color:#a32d2d}
+  </style>
+</head>
+<body>
+  <h2>Sales Target Reminder Registration</h2>
+  <p>Enter your name and tap the button below to receive a notification on this device whenever your outlet is behind target. You only need to do this once - the owner will assign you to your outlet afterward.</p>
+  <input type="text" id="name" placeholder="Your name">
+  <button id="registerBtn">Enable notifications</button>
+  <div id="status"></div>
+
+  <!-- CONFIG: set this to your deployed Apps Script Web App URL -->
+  <script>
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwjuWBIJqe0biJLEQlZ0Mqv5nsodW_hAzAomtHNJ9ZC-DleryiqDlCcjsUd8LcZ-C3c/exec';
+  </script>
+
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  <script>
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+      await OneSignal.init({
+        appId: "e4a22747-f2bc-4dbb-acbb-d6ff2a01ad0b",
+      });
+
+      const btn = document.getElementById('registerBtn');
+      const statusEl = document.getElementById('status');
+      const nameInput = document.getElementById('name');
+
+      btn.addEventListener('click', async () => {
+        const name = nameInput.value.trim();
+        if (!name){
+          statusEl.textContent = 'Please enter your name first.';
+          statusEl.className = 'err';
+          return;
+        }
+        btn.disabled = true;
+        statusEl.textContent = 'Requesting permission...';
+        statusEl.className = '';
+        try {
+          await OneSignal.Notifications.requestPermission();
+          const id = OneSignal.User.PushSubscription.id;
+          if (!id){
+            statusEl.textContent = 'Permission was not granted, or this browser does not support notifications. Please allow notifications and try again.';
+            statusEl.className = 'err';
+            btn.disabled = false;
+            return;
+          }
+          if (APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0){
+            statusEl.textContent = 'Setup incomplete: the registration page is not yet connected to the tracker. Contact the owner.';
+            statusEl.className = 'err';
+            btn.disabled = false;
+            return;
+          }
+          await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify({action: 'registerIncharge', name: name, oneSignalId: id})
+          });
+          statusEl.textContent = 'You are registered, ' + name + '! The owner will assign you to your outlet shortly.';
+          statusEl.className = 'ok';
+        } catch (err) {
+          statusEl.textContent = 'Something went wrong: ' + err.message;
+          statusEl.className = 'err';
+          btn.disabled = false;
+        }
+      });
+    });
+  </script>
+</body>
+</html>
