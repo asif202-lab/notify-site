@@ -25,59 +25,90 @@
 
   <!-- CONFIG: set this to your deployed Apps Script Web App URL -->
   <script>
-    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwjuWBIJqe0biJLEQlZ0Mqv5nsodW_hAzAomtHNJ9ZC-DleryiqDlCcjsUd8LcZ-C3c/exec';
+    const APPS_SCRIPT_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
   </script>
 
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
   <script>
+    const btn = document.getElementById('registerBtn');
+    const statusEl = document.getElementById('status');
+    const nameInput = document.getElementById('name');
+
+    let oneSignalInstance = null;
+    let oneSignalReady = false;
+    let oneSignalFailed = false;
+
+    // If OneSignal hasn't finished loading within 8 seconds, tell the person outright
+    // instead of leaving the button silently doing nothing.
+    setTimeout(() => {
+      if (!oneSignalReady && !oneSignalFailed){
+        oneSignalFailed = true;
+        statusEl.textContent = 'The notification service did not load. Check your internet connection, disable any ad blocker for this page, and reload.';
+        statusEl.className = 'err';
+      }
+    }, 8000);
+
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal) {
-      await OneSignal.init({
-        appId: "e4a22747-f2bc-4dbb-acbb-d6ff2a01ad0b",
-      });
+      try {
+        await OneSignal.init({ appId: "e4a22747-f2bc-4dbb-acbb-d6ff2a01ad0b" });
+        oneSignalInstance = OneSignal;
+        oneSignalReady = true;
+      } catch (err) {
+        oneSignalFailed = true;
+        statusEl.textContent = 'The notification service failed to start: ' + err.message;
+        statusEl.className = 'err';
+      }
+    });
 
-      const btn = document.getElementById('registerBtn');
-      const statusEl = document.getElementById('status');
-      const nameInput = document.getElementById('name');
-
-      btn.addEventListener('click', async () => {
-        const name = nameInput.value.trim();
-        if (!name){
-          statusEl.textContent = 'Please enter your name first.';
-          statusEl.className = 'err';
-          return;
-        }
-        btn.disabled = true;
-        statusEl.textContent = 'Requesting permission...';
+    btn.addEventListener('click', async () => {
+      const name = nameInput.value.trim();
+      if (!name){
+        statusEl.textContent = 'Please enter your name first.';
+        statusEl.className = 'err';
+        return;
+      }
+      if (oneSignalFailed){
+        statusEl.textContent = 'The notification service is not available on this browser/connection. Try a different browser or network, or contact the owner.';
+        statusEl.className = 'err';
+        return;
+      }
+      if (!oneSignalReady){
+        statusEl.textContent = 'Still loading, please wait a couple of seconds and tap the button again.';
         statusEl.className = '';
-        try {
-          await OneSignal.Notifications.requestPermission();
-          const id = OneSignal.User.PushSubscription.id;
-          if (!id){
-            statusEl.textContent = 'Permission was not granted, or this browser does not support notifications. Please allow notifications and try again.';
-            statusEl.className = 'err';
-            btn.disabled = false;
-            return;
-          }
-          if (APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0){
-            statusEl.textContent = 'Setup incomplete: the registration page is not yet connected to the tracker. Contact the owner.';
-            statusEl.className = 'err';
-            btn.disabled = false;
-            return;
-          }
-          await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify({action: 'registerIncharge', name: name, oneSignalId: id})
-          });
-          statusEl.textContent = 'You are registered, ' + name + '! The owner will assign you to your outlet shortly.';
-          statusEl.className = 'ok';
-        } catch (err) {
-          statusEl.textContent = 'Something went wrong: ' + err.message;
+        return;
+      }
+      const OneSignal = oneSignalInstance;
+      btn.disabled = true;
+      statusEl.textContent = 'Requesting permission...';
+      statusEl.className = '';
+      try {
+        await OneSignal.Notifications.requestPermission();
+        const id = OneSignal.User.PushSubscription.id;
+        if (!id){
+          statusEl.textContent = 'Permission was not granted, or this browser does not support notifications. Please allow notifications and try again.';
           statusEl.className = 'err';
           btn.disabled = false;
+          return;
         }
-      });
+        if (APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0){
+          statusEl.textContent = 'Setup incomplete: the registration page is not yet connected to the tracker. Contact the owner.';
+          statusEl.className = 'err';
+          btn.disabled = false;
+          return;
+        }
+        await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain;charset=utf-8'},
+          body: JSON.stringify({action: 'registerIncharge', name: name, oneSignalId: id})
+        });
+        statusEl.textContent = 'You are registered, ' + name + '! The owner will assign you to your outlet shortly.';
+        statusEl.className = 'ok';
+      } catch (err) {
+        statusEl.textContent = 'Something went wrong: ' + err.message;
+        statusEl.className = 'err';
+        btn.disabled = false;
+      }
     });
   </script>
 </body>
